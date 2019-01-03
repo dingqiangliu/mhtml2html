@@ -34,8 +34,23 @@ type file struct {
 	converted   bool
 }
 
+
+type arrayFlags []string
+
+func (f *arrayFlags) String() string {
+    return fmt.Sprint([]string(*f))
+}
+
+func (f *arrayFlags) Set(value string) error {
+    *f = append(*f, value)
+    return nil
+}
+
+
 var (
-	browsing = flag.Bool("b", false, "browsing result(default: false)")
+	browsing = flag.Bool("b", false, "optional: browsing result(default: false, ouput to stdout)") 
+	removingElementArray arrayFlags //option: jquery like elements selectors to be removed
+	removingAttrArray arrayFlags //option: pairs of jquery like elements selector and attribute to be removed
 
 	rWithProto = regexp.MustCompile("^[a-z]+:")
 	rURL       = regexp.MustCompile(`\burl\(([^()]+)\)`)
@@ -71,9 +86,7 @@ func modifyCSS(base *url.URL, data []byte) []byte {
         // try to embed resource in CSS 
         if f, ok := files[u]; ok {
             u =  base64.StdEncoding.EncodeToString(f.data)
-            ct := strings.Replace(f.contentType, "\"", "", -1)
-            ct = strings.Replace(ct, " ", "", -1)
-            u =  "url(data:" + ct + ";base64," + u + ")"
+            u =  "url(data:" + f.contentType + ";base64," + u + ")"
         } else {
 		    u = "url(/" + url.PathEscape(abs(base, u)) + ")"
         }
@@ -85,6 +98,31 @@ func modifyHTML(base *url.URL, data []byte, converted bool) ([]byte, error) {
 	d, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
+	}
+
+	// remove elements
+	for _, sel := range removingElementArray {
+		//fmt.Fprintf(os.Stderr, "DEBUG: remove elements %s: %s \n", sel, d.Find(sel).Nodes)
+		d.Find(sel).Remove()
+	}
+
+	// remove attributes
+	var sel, attr string
+	for i, item := range removingAttrArray {
+		if i % 2 == 0 {
+			sel = item 
+		} else {
+			attr = item 
+		}
+		if i % 2 == 1 {
+			el := d.Find(sel)
+			//fmt.Fprintf(os.Stderr, "DEUBG: try to remove attr %s[%s] from: %s \n", sel, attr, el.Nodes)
+			if _, ok := el.Attr(attr); ok {
+				//el.RemoveAttr(attr)
+				el.SetAttr(attr, "")
+				//fmt.Fprintf(os.Stderr, "DEBUG:    removed attr %s[%s]\n", sel, attr)
+			}
+		}
 	}
 
 	if converted {
@@ -176,7 +214,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		if !found {
 			http.NotFound(w, r)
 
-            //log.Println("Not found: %s ", url)
+			//fmt.Fprintf(os.Stderr, "DEBUG: Not found: %s ", url)
 			return
 		}
 	}
@@ -185,17 +223,19 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Length", fmt.Sprint(len(f.data)))
 	w.Write(f.data)
 
-    //log.Println("GET: ", url, " Content-Type: ", f.contentType, "Content-Length: ", len(f.data))
+    //fmt.println(os.Stderr, "DEBUG GET: ", url, " Content-Type: ", f.contentType, "Content-Length: ", len(f.data))
 }
 
 func main() {
 	log.SetFlags(log.Lshortfile)
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "USAGE: mhtl2html [-b] FILE")
+		fmt.Fprintf(os.Stderr, "mhtl2html [opitons] MHTMLFILE \r\n Options: \r\n")
+		flag.PrintDefaults()
 	}
+	flag.Var(&removingElementArray, "re", "repeatablely optional: jquery like elements selector to be removed")
+	flag.Var(&removingAttrArray, "ra", "repeatablely optional: pairs of jquery like elements selector and attribute to be removed")
 	flag.Parse()
-
-	if flag.NArg() != 1 {
+	if (flag.NArg() != 1) || (len(removingAttrArray) % 2 != 0) {
 		flag.Usage()
 		os.Exit(0)
 	}
@@ -253,7 +293,11 @@ func main() {
 			cid2loc[cid] = contentLocation
 		}
 
+		// NOTE: no space and double quotation permitted in contenType of CSS url base64 encoding data
 		contentType := part.Header.Get("Content-Type")
+		contentType = strings.Replace(contentType, "\"", "", -1)
+		contentType = strings.Replace(contentType, "'", "", -1)
+		contentType = strings.Replace(contentType, " ", "", -1)
 		initial := false
 		if initialLoc == "" && (contentType == "text/html" || strings.HasPrefix(contentType, "text/html;")) {
 			initialLoc = contentLocation
@@ -297,10 +341,10 @@ func main() {
 	    srv := httptest.NewServer(http.HandlerFunc(handler))
 	    initialURL := srv.URL + "/" + url.PathEscape(initialLoc)
 	    if err := browser.OpenURL(initialURL); err != nil {
-			log.Println("Couldn't start browser:", err)
-            log.Println("Open the following URL manually:", initialURL)
+			fmt.Fprintf(os.Stderr, "Couldn't start browser:", err)
+            fmt.Fprintf(os.Stderr, "Open the following URL manually:", initialURL)
 	    } else {
-            log.Println("Browsing: ", initialURL)
+            fmt.Fprintf(os.Stderr, "Browsing: %s", initialURL)
         }
 
 	    select {}

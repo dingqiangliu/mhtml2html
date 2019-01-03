@@ -4,6 +4,8 @@ Convert MHTM file to a single HTML embedded all resources with base64 encoding, 
 
 ## Update
  
+- 2019-01-03: support removing elements or attributes.
+
 - 2019-01-01: embed all resources in a single HTML file, including scripts, style sheets and fonts.
 
 - 2018-12-31: clone from[UnMHT at gitlab](https://gitlab.com/opennota/unmht) .
@@ -14,11 +16,17 @@ Convert MHTM file to a single HTML embedded all resources with base64 encoding, 
 go get -u github.com/dingqiangliu/mhtml2html
 ```
 
-## Use
-
-- USAGE: mhtl2html [-b] FILE
+## Usage
 
 ``` BASH
+# mhtml2html -h
+mhtl2html [options] MHTMLFILE
+  -b	optional: browsing result(default: false, ouput to stdout)
+  -ra value
+    	repeatablely optional: pairs of jquery like elements selector and attribute to be removed
+  -re value
+    	repeatablely optional: jquery like elements selector to be removed
+
 # convert MHTL file to a single HTML file.
 mhtml2html previously-saved.mht > singlefile.html
 
