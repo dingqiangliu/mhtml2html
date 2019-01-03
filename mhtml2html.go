@@ -24,6 +24,15 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/andybalholm/cascadia"
 	"github.com/pkg/browser"
+
+	"github.com/tdewolff/minify/v2"
+	"github.com/tdewolff/minify/v2/css"
+	"github.com/tdewolff/minify/v2/html"
+	"github.com/tdewolff/minify/v2/js"
+	"github.com/tdewolff/minify/v2/json"
+	"github.com/tdewolff/minify/v2/svg"
+	"github.com/tdewolff/minify/v2/xml"
+	"github.com/tdewolff/parse/v2/buffer"
 )
 
 type file struct {
@@ -51,6 +60,7 @@ var (
 	browsing = flag.Bool("b", false, "optional: browsing result(default: false, ouput to stdout)") 
 	removingElementArray arrayFlags //option: jquery like elements selectors to be removed
 	removingAttrArray arrayFlags //option: pairs of jquery like elements selector and attribute to be removed
+	needMinify = flag.Bool("m", false, "optional: need minify output(default: false)") 
 
 	rWithProto = regexp.MustCompile("^[a-z]+:")
 	rURL       = regexp.MustCompile(`\burl\(([^()]+)\)`)
@@ -256,6 +266,17 @@ func main() {
 		log.Fatal(err)
 	}
 
+	var minifier *minify.M
+	if *needMinify {
+		minifier = minify.New()
+		minifier.AddFunc("text/css", css.Minify)
+		minifier.AddFunc("text/html", html.Minify)
+		minifier.AddFunc("image/svg+xml", svg.Minify)
+		minifier.AddFuncRegexp(regexp.MustCompile("^(application|text)/(x-)?(java|ecma)script$"), js.Minify)
+		minifier.AddFuncRegexp(regexp.MustCompile("[/+]json$"), json.Minify)
+		minifier.AddFuncRegexp(regexp.MustCompile("[/+]xml$"), xml.Minify)
+	}
+
 	mpr := multipart.NewReader(msg.Body, boundary)
 	initialLoc := ""
 	for {
@@ -303,6 +324,16 @@ func main() {
 			initialLoc = contentLocation
 			initial = true
 		}
+
+		if *needMinify {
+			out := buffer.NewWriter(make([]byte, 0, len(data)))
+			if err := minifier.Minify(strings.Split(contentType, ";")[0], out, buffer.NewReader(data)); err == nil {
+				data = out.Bytes()
+			}  else {
+				//fmt.Fprintf(os.Stderr, "DEBUG: failed to miniy %s %s. Reason: %s \n", contentType, contentLocation, err)
+			}
+		}
+
 		files[contentLocation] = &file{contentType, base, data, initial, false}
 	}
 

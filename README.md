@@ -4,6 +4,8 @@ Convert MHTM file to a single HTML embedded all resources with base64 encoding, 
 
 ## Update
  
+- 2019-01-03: support minifiying HTML/CSS/scripts. 
+
 - 2019-01-03: support removing elements or attributes.
 
 - 2019-01-01: embed all resources in a single HTML file, including scripts, style sheets and fonts.
@@ -22,6 +24,7 @@ go get -u github.com/dingqiangliu/mhtml2html
 # mhtml2html -h
 mhtl2html [options] MHTMLFILE
   -b	optional: browsing result(default: false, ouput to stdout)
+  -m	optional: need minify output(default: false)
   -ra value
     	repeatablely optional: pairs of jquery like elements selector and attribute to be removed
   -re value
