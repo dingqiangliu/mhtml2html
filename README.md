@@ -6,6 +6,8 @@ Convert MHTM file to a single HTML embedded all resources with base64 encoding, 
  
 - 2019-01-07: add script "convertConfluencePages.sh" to batch convert and clean MHT files.
 
+  **Note:** it only work on where there is gnu **sed** command.
+
 - 2019-01-03: support minifiying HTML/CSS/scripts. 
 
 - 2019-01-03: support removing elements or attributes.
